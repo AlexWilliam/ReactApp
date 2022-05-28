@@ -1,0 +1,89 @@
+version: "3.7"
+services:
+    # image project
+    app:
+        container_name: laravel-app
+        build:
+          args:
+            "user": "awgoncalves"
+            "uid": "9999"
+          context: .
+          dockerfile: ./api/docker/Dockerfile
+        image: laravel-app/laravel-app
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - ./api/:/var/www
+        depends_on: 
+            - redis
+        networks: 
+            - laravelApp
+    
+    # nginx
+    nginx:
+        container_name: laravel-app-nginx
+        image: nginx:alpine
+        restart: unless-stopped
+        ports: 
+            - "8989:80"
+        volumes: 
+            - ./api/:/var/www
+            - ./api/docker/nginx/:/etc/nginx/conf.d/
+        networks: 
+            - laravelApp
+
+    # db mysql
+    mysql:
+        container_name: laravel-app-mysql
+        image: mysql:5.7.22
+        restart: unless-stopped
+        environment: 
+            MYSQL_DATABASE: ./api/${DB_DATABASE}
+            MYSQL_ROOT_PASSWORD: ./api/${DB_PASSWORD}
+            MYSQL_PASSWORD: ./api/${DB_PASSWORD}
+            MYSQL_USER: ./api/${DB_USERNAME}
+        volumes: 
+            - ./api/.docker/mysql/dbdata:/var/lib/mysql
+        ports: 
+            - "3308:3306"
+        networks: 
+            - laravelApp
+
+    # queue
+    queue:
+        container_name: laravel-app-queue
+        image: laravel-app/laravel-app
+        restart: unless-stopped
+        command: "php artisan queue:work"
+        volumes: 
+            - ./api/:/var/www
+        depends_on: 
+            - redis
+            - app
+        networks: 
+            - laravelApp
+
+    # redis
+    redis:
+        container_name: laravel-app-redis
+        image: redis:latest
+        networks: 
+            - laravelApp
+
+    #react
+    react-app:
+        container_name: react-app
+        build:
+            context: .
+            dockerfile: ./docker/Dockerfile
+        volumes:
+            - '.:/app'
+            - '/app/node_modules'
+        ports:
+            - '3001:3000'
+        environment:
+            - NODE_ENV=development
+
+networks: 
+    laravelApp:
+        driver: bridge
